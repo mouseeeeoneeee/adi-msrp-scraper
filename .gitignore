@@ -1,0 +1,9 @@
+﻿.venv/
+.auth/
+data/
+.env
+*.xlsx
+*.csv
+*.log
+*.db
+.DS_Store
