@@ -1,0 +1,41 @@
+2025/10/07-16:17:50.868 e2a4 Reusing MANIFEST C:\Users\RachelKim\OneDrive - IDIS Americas, Inc\Desktop\Codes\adi-msrp-scraper\.adi_profile\Default\Local Storage\leveldb/MANIFEST-000001
+2025/10/07-16:17:50.879 e2a4 Recovering log #10
+2025/10/07-16:17:50.883 e2a4 Reusing old log C:\Users\RachelKim\OneDrive - IDIS Americas, Inc\Desktop\Codes\adi-msrp-scraper\.adi_profile\Default\Local Storage\leveldb/000010.log 
+2025/10/07-16:18:50.905 dcec Level-0 table #14: started
+2025/10/07-16:18:50.915 dcec Level-0 table #14: 41643 bytes OK
+2025/10/07-16:18:50.920 dcec Delete type=0 #10
+2025/10/07-16:20:54.644 dcec Level-0 table #16: started
+2025/10/07-16:20:54.652 dcec Level-0 table #16: 48141 bytes OK
+2025/10/07-16:20:54.655 dcec Delete type=0 #13
+2025/10/07-16:20:54.656 dcec Compacting 4@0 + 1@1 files
+2025/10/07-16:20:54.667 dcec Generated table #17@0: 28 keys, 27151 bytes
+2025/10/07-16:20:54.668 dcec Compacted 4@0 + 1@1 files => 27151 bytes
+2025/10/07-16:20:54.669 dcec compacted to: files[ 0 1 1 0 0 0 0 ]
+2025/10/07-16:20:54.670 dcec Delete type=2 #7
+2025/10/07-16:20:54.670 dcec Delete type=2 #9
+2025/10/07-16:20:54.670 dcec Delete type=2 #11
+2025/10/07-16:20:54.670 dcec Delete type=2 #14
+2025/10/07-16:20:54.670 dcec Delete type=2 #16
+2025/10/07-16:21:54.645 dcec Level-0 table #19: started
+2025/10/07-16:21:54.656 dcec Level-0 table #19: 31229 bytes OK
+2025/10/07-16:21:54.658 dcec Delete type=0 #15
+2025/10/07-16:21:56.370 dcec Level-0 table #21: started
+2025/10/07-16:21:56.414 dcec Level-0 table #21: 33058 bytes OK
+2025/10/07-16:21:56.427 dcec Delete type=0 #18
+2025/10/07-16:22:54.646 dcec Level-0 table #23: started
+2025/10/07-16:22:54.657 dcec Level-0 table #23: 38231 bytes OK
+2025/10/07-16:22:54.660 dcec Delete type=0 #20
+2025/10/07-16:22:56.373 dcec Level-0 table #25: started
+2025/10/07-16:22:56.383 dcec Level-0 table #25: 33374 bytes OK
+2025/10/07-16:22:56.385 dcec Delete type=0 #22
+2025/10/07-16:22:56.386 e2a4 Compacting 4@0 + 1@1 files
+2025/10/07-16:22:56.395 e2a4 Generated table #26@0: 28 keys, 33416 bytes
+2025/10/07-16:22:56.396 e2a4 Compacted 4@0 + 1@1 files => 33416 bytes
+2025/10/07-16:22:56.397 e2a4 compacted to: files[ 0 1 1 0 0 0 0 ]
+2025/10/07-16:22:56.398 e2a4 Delete type=2 #17
+2025/10/07-16:22:56.398 e2a4 Delete type=2 #19
+2025/10/07-16:22:56.398 e2a4 Delete type=2 #21
+2025/10/07-16:22:56.398 e2a4 Delete type=2 #23
+2025/10/07-16:22:56.398 e2a4 Delete type=2 #25
+2025/10/07-16:22:59.626 dcec Level-0 table #28: started
+2025/10/07-16:22:59.648 dcec Level-0 table #28: 33712 bytes OK

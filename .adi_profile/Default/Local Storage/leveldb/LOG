@@ -1,0 +1,49 @@
+2025/10/07-16:29:50.630 b6b8 Reusing MANIFEST C:\Users\RachelKim\OneDrive - IDIS Americas, Inc\Desktop\Codes\adi-msrp-scraper\.adi_profile\Default\Local Storage\leveldb/MANIFEST-000001
+2025/10/07-16:29:50.640 b6b8 Recovering log #24
+2025/10/07-16:29:50.640 b6b8 Level-0 table #28: started
+2025/10/07-16:29:50.651 b6b8 Level-0 table #28: 33712 bytes OK
+2025/10/07-16:29:50.652 b6b8 Recovering log #27
+2025/10/07-16:29:50.656 b6b8 Reusing old log C:\Users\RachelKim\OneDrive - IDIS Americas, Inc\Desktop\Codes\adi-msrp-scraper\.adi_profile\Default\Local Storage\leveldb/000027.log 
+2025/10/07-16:29:50.662 b6b8 Delete type=0 #24
+2025/10/07-16:30:50.685 e488 Level-0 table #30: started
+2025/10/07-16:30:50.695 e488 Level-0 table #30: 43364 bytes OK
+2025/10/07-16:30:50.698 e488 Delete type=0 #27
+2025/10/07-16:31:53.302 e488 Level-0 table #32: started
+2025/10/07-16:31:53.318 e488 Level-0 table #32: 35070 bytes OK
+2025/10/07-16:31:53.321 e488 Delete type=0 #29
+2025/10/07-16:31:55.286 e488 Level-0 table #34: started
+2025/10/07-16:31:55.302 e488 Level-0 table #34: 34971 bytes OK
+2025/10/07-16:31:55.305 e488 Delete type=0 #31
+2025/10/07-16:31:55.307 e488 Compacting 4@0 + 1@1 files
+2025/10/07-16:31:55.318 e488 Generated table #35@0: 28 keys, 35012 bytes
+2025/10/07-16:31:55.318 e488 Compacted 4@0 + 1@1 files => 35012 bytes
+2025/10/07-16:31:55.320 e488 compacted to: files[ 0 1 1 0 0 0 0 ]
+2025/10/07-16:31:55.322 e488 Delete type=2 #26
+2025/10/07-16:31:55.322 e488 Delete type=2 #28
+2025/10/07-16:31:55.322 e488 Delete type=2 #30
+2025/10/07-16:31:55.322 e488 Delete type=2 #32
+2025/10/07-16:31:55.322 e488 Delete type=2 #34
+2025/10/07-16:32:53.304 e488 Level-0 table #37: started
+2025/10/07-16:32:53.325 e488 Level-0 table #37: 40288 bytes OK
+2025/10/07-16:32:53.332 e488 Delete type=0 #33
+2025/10/07-16:33:53.293 e488 Level-0 table #39: started
+2025/10/07-16:33:53.304 e488 Level-0 table #39: 36119 bytes OK
+2025/10/07-16:33:53.306 e488 Delete type=0 #36
+2025/10/07-16:33:55.291 e488 Level-0 table #41: started
+2025/10/07-16:33:55.304 e488 Level-0 table #41: 47067 bytes OK
+2025/10/07-16:33:55.306 e488 Delete type=0 #38
+2025/10/07-16:34:55.284 e488 Level-0 table #43: started
+2025/10/07-16:34:55.296 e488 Level-0 table #43: 37432 bytes OK
+2025/10/07-16:34:55.299 e488 Delete type=0 #40
+2025/10/07-16:34:55.301 e488 Compacting 4@0 + 1@1 files
+2025/10/07-16:34:55.310 e488 Generated table #44@0: 28 keys, 37574 bytes
+2025/10/07-16:34:55.311 e488 Compacted 4@0 + 1@1 files => 37574 bytes
+2025/10/07-16:34:55.313 e488 compacted to: files[ 0 1 1 0 0 0 0 ]
+2025/10/07-16:34:55.314 e488 Delete type=2 #35
+2025/10/07-16:34:55.314 e488 Delete type=2 #37
+2025/10/07-16:34:55.315 e488 Delete type=2 #39
+2025/10/07-16:34:55.315 e488 Delete type=2 #41
+2025/10/07-16:34:55.315 e488 Delete type=2 #43
+2025/10/07-16:35:30.785 e488 Level-0 table #46: started
+2025/10/07-16:35:30.798 e488 Level-0 table #46: 43072 bytes OK
+2025/10/07-16:35:30.802 e488 Delete type=0 #42
