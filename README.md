@@ -1,157 +1,226 @@
-ADI MSRP Scraper — README
+# 🧾 ADI MSRP Scraper
 
-This repo scrapes Hanwha camera product data from ADI’s US site and (optionally) pulls MSRP from each product detail page (PDP). It writes both a catalog snapshot and a results export (CSV/XLSX) under data/exports/.
+A Python scraper that extracts **Hanwha camera product data** from **ADI Global (US)**, retrieves **MSRP and product details**, and exports structured results to Excel or CSV.
 
-What it does
+---
 
-Authenticate once to ADI and reuse a saved session (storage_state.json) on later runs.
+## 📦 Overview
 
-Load the Hanwha IP Cameras listing, auto-click “Show/Load More,” and extract product tiles (brand, marketing title, model, ADI’s SQ-code, URL, lightweight attributes).
+The scraper performs the following steps:
 
-(Optional) Visit each PDP to extract MSRP and richer attributes (title, model/SQ code under the H1, IK rating, IR, lens info/type) from the left column and “Key Features.”
+1. **Authenticates** to ADI and saves session data → `storage_state.json`  
+2. **Loads all products** from the ADI listing page  
+3. **Optionally visits each Product Detail Page (PDP)** to extract MSRP and technical specs  
+4. **Exports results** to `data/exports/` with timestamped filenames  
 
-Export files to data/exports/ with timestamped names.
+---
 
-Repo layout
+## 📁 Folder Structure
+
+```
 adi-msrp-scraper/
-├─ data/                     # exports/ and logs/ are created here at runtime
+├─ data/
+│  ├─ exports/              # Auto-created output (Excel / CSV)
+│  └─ logs/                 # Optional: saved HTML/screenshot logs
 ├─ src/
-│  ├─ auth.py                # login + storage_state.json reuse :contentReference[oaicite:5]{index=5}
-│  ├─ catalog.py             # listing-page extractor (tiles → rows) :contentReference[oaicite:6]{index=6}
-│  ├─ config.py              # brand config (Hanwha URL + MSRP labels) :contentReference[oaicite:7]{index=7}
-│  ├─ detail.py              # PDP parser: title/codes/features/MSRP → fields :contentReference[oaicite:8]{index=8}
-│  ├─ export.py              # CSV/XLSX writer with suffix handling :contentReference[oaicite:9]{index=9}
-│  ├─ main.py                # CLI entrypoint & orchestration :contentReference[oaicite:10]{index=10}
-│  └─ debug_login.py         # optional: form-based login & screenshots :contentReference[oaicite:11]{index=11}
+│  ├─ auth.py               # Login + session handling
+│  ├─ catalog.py            # Listing-page scraper
+│  ├─ config.py             # Brand and site configuration
+│  ├─ detail.py             # PDP parser for MSRP + attributes
+│  ├─ export.py             # Excel/CSV export logic
+│  ├─ main.py               # CLI entry point
+│  └─ debug_login.py        # Manual login helper (optional)
 ├─ requirements.txt
-├─ refresh_hanwha.bat        # example Windows runner
-└─ storage_state.json        # saved browser session (created on first run)
+├─ refresh_hanwha.bat       # Example Windows batch file
+└─ storage_state.json       # Saved login session (auto-created)
+```
 
-Prerequisites
+---
 
-Python 3.10+ recommended
+## ⚙️ Installation
 
-Chrome/Chromium via Playwright
+**Requirements**
 
-Install deps:
+- Python **3.10+**
+- Playwright
+- Chrome/Chromium
 
+**Install dependencies**
+
+```bash
 pip install -r requirements.txt
 python -m playwright install
+```
 
+---
 
-The code uses Playwright sync API, pandas, and python-dotenv.
+## 🚀 How to Run
 
-First-time login
+> All commands should be executed from the **repo root** (where `src/` is located).
 
-The scraper persists an authenticated browser state to storage_state.json and reuses it automatically. On first run, a visible window opens for manual login and is saved when the header shows you’re signed in.
+---
 
-If you prefer a credentialed, form-fill login for debugging, you can create a .env with ADI_USER and ADI_PASS and run:
+### 🟩 1. Run the Full Scraper (Catalog + PDP + MSRP)
 
-python src/debug_login.py
+Fetch all products, visit each PDP, and export MSRP + product details.
 
-
-This writes storage_state.json and drops HTML/PNG evidence in data/logs/.
-
-Usage
-
-Basic (headed browser, full flow):
-
+```bash
 python src/main.py --brand Hanwha
+```
 
+**Optional flags:**
 
-Headless:
+```bash
+--headless       # Run without browser window
+--keep-open      # Keep browser open for debugging
+--limit 10       # Process only the first 10 products
+```
 
+**Example:**
+
+```bash
 python src/main.py --brand Hanwha --headless
+```
 
+---
 
-Limit items (quick test):
+### 🟦 2. Catalog-Only (No PDP/MSRP)
 
-python src/main.py --brand Hanwha --limit 10
+Create a product list (URLs only), skipping PDP scraping.
 
-
-Catalog-only (skip PDP/MSRP phase):
-
+```bash
 python src/main.py --brand Hanwha --catalog-only
+```
 
+**Output:**  
+`data/exports/adi_hanwha_catalog_YYYYMMDD_HHMM.xlsx`
 
-Two-phase workflow (recommended for big runs):
+---
 
-Create a catalog snapshot (URLs, titles, models):
+### 🟨 3. Use an Existing Catalog File (Fetch MSRP Only)
 
-python src/main.py --brand Hanwha --catalog-only
+If you already have a file with product URLs (Excel or CSV), reuse it to scrape MSRP and details only.
 
+```bash
+python src/main.py --brand Hanwha --from-file "data/exports/adi_hanwha_catalog_20251008_1530.xlsx"
+```
 
-Reuse that file to fetch only MSRP/attributes from PDPs:
+**Helpful flags:**
 
-python src/main.py --brand Hanwha --from-file "data/exports/adi_hanwha_catalog_YYYYMMDD_HHMM.xlsx"
+```bash
+--only-missing   # Only update rows missing MSRP
+--pdp-only       # Skip catalog scrape phase
+--headless       # Hide browser window
+```
 
+**Example:**
 
-Flags reference: --brand, --headless, --keep-open, --only-missing, --catalog-only, --from-file, --pdp-only, --limit.
+```bash
+python src/main.py --brand Hanwha --from-file "data/exports/adi_hanwha_catalog_20251008_1530.xlsx" --only-missing --headless
+```
 
-When using --from-file, the loader ensures a url column exists and backfills any expected columns if missing. Expected columns include:
-brand, title, model, alt_model, url, series, megapixels, form_factor, vandal, ir, msrp, msrp_raw.
+**Output:**  
+`data/exports/adi_hanwha_msrp_YYYYMMDD_HHMM.xlsx`
 
-What gets exported
+---
 
-Catalog snapshot (always written before the PDP phase unless --pdp-only):
-data/exports/adi_hanwha_catalog_YYYYMMDD_HHMM.(csv|xlsx)
+### 🟥 4. Refresh Login (If MSRP Disappears)
 
-Results export (after PDP phase):
-data/exports/adi_hanwha_msrp_YYYYMMDD_HHMM.(csv|xlsx) by default, or with a custom suffix from export.py.
+If MSRP values stop appearing, your session likely expired. Re-login manually.
 
-Columns (combined across catalog + PDP):
+**macOS / Linux:**
 
-brand, title, model, alt_model, url
+```bash
+rm -f storage_state.json
+python src/main.py --brand Hanwha
+```
 
-Parsed/derived: series, megapixels, form_factor, ik_rating, ir, lens_type, lens_info (PDP features & title parsers).
+**Windows:**
 
-Pricing: msrp_raw (e.g., MSRP $300), msrp (normalized numeric string).
+```bat
+del storage_state.json
+python src\main.py --brand Hanwha
+```
 
-How it parses things (at a glance)
+Or use environment variables (`ADI_USER`, `ADI_PASS`) for automated login:
 
-Listing page: selects only links under /Product/* to avoid non-PDP collisions, reads the tile’s brand/title/codes, parses megapixels, series, form factor, IR, vandal keywords.
+```bash
+python src/debug_login.py
+```
 
-PDP page:
+---
 
-Title from the left column H1; Key Features bullets below it.
+### 🟪 5. Recommended Two-Phase Workflow (For Large Runs)
 
-Model & ADI SKU (e.g., ANV-L7082R | SQ-ANVL7082R) read from the codes text under the H1.
+**Phase 1 – Catalog Snapshot**
 
-MSRP discovered in the right column (or whole page) using label variants from config.py (e.g., MSRP, List Price).
+```bash
+python src/main.py --brand Hanwha --catalog-only --headless
+```
 
-Features regexes pull IK10/09/08, IR presence, lens type (Motorized Varifocal, Fixed, MFZ), and focal length (e.g., 3.3–10.3mm).
+**Phase 2 – PDP/MSRP Enrichment**
 
-Brand configuration
+```bash
+python src/main.py --brand Hanwha --from-file "data/exports/adi_hanwha_catalog_YYYYMMDD_HHMM.xlsx" --only-missing --headless
+```
 
-Brands live in src/config.py. Hanwha is pre-wired with the IP Cameras listing URL and MSRP label variants. Add other brands by extending this dict.
+---
 
-Logs & diagnostics
+## 📤 Exported Files
 
-Listing/PDP errors write screenshots/HTML under data/logs.
+| Type | Example Filename | Description |
+|------|------------------|-------------|
+| Catalog Snapshot | `adi_hanwha_catalog_YYYYMMDD_HHMM.xlsx` | Product list + URLs |
+| MSRP Results | `adi_hanwha_msrp_YYYYMMDD_HHMM.xlsx` | Combined catalog + MSRP results |
 
-The code clicks away cookie/consent banners automatically.
+**Common columns:**
 
-Tips & troubleshooting
+```
+brand, title, model, alt_model, url,
+series, megapixels, form_factor, ir, ik_rating,
+lens_type, lens_info, msrp_raw, msrp
+```
 
-Not logged in / prices hidden: Delete storage_state.json and run again (headed) to refresh login.
+---
 
-Only update missing MSRP: add --only-missing when re-running a file with existing data.
+## 🧠 How It Works
 
-Keep browser open (for manual inspection): add --keep-open. You’ll be prompted to press Enter when finished.
+- **`catalog.py`** — Scrapes listing pages for product tiles (brand, title, SKU, URL)  
+- **`detail.py`** — Extracts MSRP, lens info, IK rating, etc. from each PDP  
+- **`config.py`** — Holds brand URLs and label patterns  
+- **`export.py`** — Merges and exports Excel/CSV output  
+- **`auth.py`** — Manages login + reuses `storage_state.json` session  
 
-Tile count stuck: The catalog loader repeatedly scrolls/clicks “Load/Show More” and stops after counts stabilize; re-run if the site is slow.
+---
 
-Windows quick-run example
+## 🧹 Troubleshooting
 
-The included refresh_hanwha.bat can wrap a typical two-phase refresh (adjust paths as needed):
+| Issue | Solution |
+|--------|-----------|
+| MSRP missing | Delete `storage_state.json` and re-login |
+| Only update rows missing MSRP | Use `--only-missing` |
+| Watch browser actions | Use `--keep-open` |
+| Scraper slow or stuck | Use `--limit` to test fewer products |
+| `.adi_profile` files showing in git | Add `.adi_profile/` to `.gitignore` |
 
+---
+
+## 🪟 Example Windows Batch File
+
+```bat
 @echo off
 REM Phase 1: Catalog snapshot
 python src\main.py --brand Hanwha --catalog-only --headless
 
-REM Phase 2: PDP/MSRP enrichment from latest catalog file (edit the filename)
+REM Phase 2: MSRP enrichment
 python src\main.py --brand Hanwha --from-file "data\exports\adi_hanwha_catalog_YYYYMMDD_HHMM.xlsx" --only-missing --headless
+```
 
-License / Notes
+---
 
-Internal tooling for IDIS competitive pricing workflows. Site structure may change; selectors and regexes are written to be resilient but may need updates over time.
+## 📜 License / Notes
+
+Internal tool for **IDIS Americas** — used for product benchmarking and MSRP validation.  
+ADI website structure may change; adjust selectors or patterns as needed.
+
+---
