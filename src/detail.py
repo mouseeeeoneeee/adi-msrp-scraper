@@ -1,41 +1,21 @@
-﻿# detail.py — fast PDP MSRP (request blocking + smart waits + minimal reloads)
+﻿# src/detail.py — PDP HTML parser (title + Key Features) + MSRP
 
-import os, re, time
-from typing import List, Dict, Tuple, Optional
+import os
+import re
+import time
+from typing import List, Dict, Optional, Tuple
 from playwright.sync_api import BrowserContext, Page, TimeoutError
 from config import BRANDS
 
-# ---------- Tunables ----------
-FAST = os.getenv("ADI_FAST", "1") != "0"
-PRICE_WAIT_MS = 6000 if FAST else 15000
-POST_RENDER_MS = 200 if FAST else 350
+# ---------- Regexes ----------
+MODEL_RE    = re.compile(r"\b([A-Z]{2,4}-[A-Z0-9]+)\b")       # e.g., ANV-L7082R
+ADISKU_RE   = re.compile(r"\bSQ-[A-Z0-9]+\b", re.I)            # e.g., SQ-ANVL7082R
+MP_RE       = re.compile(r"\b(\d+(?:\.\d+)?)\s*MP\b", re.I)    # 4MP, 2.0 MP
+IK_RE       = re.compile(r"\bIK[-\s]?(10|9|09|8|08)\b", re.I)  # IK10, IK09, IK8
+MM_RANGE_RE = re.compile(r"\b(\d+(?:\.\d+)?)\s*[-~–]\s*(\d+(?:\.\d+)?)\s*mm\b", re.I)
+MM_SINGLE_RE= re.compile(r"\b(\d+(?:\.\d+)?)\s*mm\b", re.I)
 
-BLOCK_HOST_SUBSTR = [
-    "googletagmanager", "google-analytics", "doubleclick",
-    "facebook", "hotjar", "optimizely", "adobedtm", "tealium",
-]
-BLOCK_RES_TYPES = {"image", "media", "font"}  # stylesheet allowed (layout ok, cheap)
-# --------------------------------
-
-def _install_fast_routes(ctx: BrowserContext):
-    if not FAST:
-        return
-    def handler(route):
-        req = route.request
-        url = req.url.lower()
-        # Kill heavy/irrelevant
-        if req.resource_type in BLOCK_RES_TYPES:
-            return route.abort()
-        if any(h in url for h in BLOCK_HOST_SUBSTR):
-            return route.abort()
-        return route.continue_()
-    # Safe to call once; no-op if already installed
-    try:
-        ctx.route("**/*", handler)
-    except Exception:
-        pass
-
-# --- UX noise killers (OneTrust + misc) ---
+# ---------- Helpers ----------
 def _dismiss_banners(page: Page):
     for sel in [
         "#onetrust-accept-btn-handler",
@@ -49,213 +29,207 @@ def _dismiss_banners(page: Page):
             loc = page.locator(sel).first
             if loc.count() and loc.is_visible():
                 loc.click()
-                page.wait_for_timeout(120 if FAST else 150)
+                page.wait_for_timeout(120)
         except Exception:
             pass
 
-def _is_logged_in(page: Page) -> bool:
-    try:
-        if page.locator("[data-test-selector='userMenu']").count(): return True
-        if page.locator("text=/Sign Out/i").count(): return True
-        if page.locator("text=/Hi,\\s*[A-Za-z]+/i").count(): return True
-    except Exception:
-        pass
-    return False
-
-def _pdp_shows_signin(page: Page) -> bool:
-    rc = "div[data-test-selector='productDetails_rightColumn']"
-    if page.locator(f"{rc} h1:has-text('Sign In for Dealer Pricing')").first.count(): return True
-    if page.locator(f"{rc} button:has-text('Sign In')").first.count(): return True
-    if page.locator(f"{rc} >> text=/Sign In/i").first.count(): return True
-    return False
-
-def _open_signin_drawer(page: Page) -> bool:
-    rc_btn = page.locator("div[data-test-selector='productDetails_rightColumn'] button:has-text('Sign In'):visible").first
-    if rc_btn.count():
-        rc_btn.click()
-    else:
-        hdr = page.locator("header a:has-text('Sign In'), header button:has-text('Sign In'), header [data-test-selector='signInLink'], header [aria-label='Sign In']").first
-        if hdr.count():
-            hdr.click()
-        else:
-            return False
-    try:
-        page.wait_for_selector("[role='alertdialog'] .signInDrawer, .signInDrawer", timeout=5000 if FAST else 10000)
-        return True
-    except TimeoutError:
-        return False
-
-def _login_via_drawer(page: Page, ctx: BrowserContext, user: str, pwd: str) -> bool:
-    drawer = page.locator("[role='alertdialog'] .signInDrawer, .signInDrawer").first
-    if not drawer.count(): return False
-
-    user_in = drawer.locator("[data-test-selector='signIn_userName'], #userName, input[name='userName'], input[name='username'], input[type='email'], input[name='email'], #email").first
-    pass_in = drawer.locator("[data-test-selector='signIn_password'], #password, input[name='password'], input[type='password']").first
-    submit  = drawer.locator("[data-test-selector='signIn_submit'], button[type='submit'], button:has-text('Sign In'), button:has-text('Sign in')").first
-
-    if not (user_in.count() and pass_in.count()): return False
-
-    user_in.click(force=True); user_in.fill(user, force=True)
-    pass_in.click(force=True); pass_in.fill(pwd,  force=True)
-    if submit.count(): submit.click()
-    else: drawer.locator("button:has-text('Sign In')").first.click()
-
-    ok = False
-    for _ in range(40 if FAST else 80):
-        if page.locator("[role='alertdialog'] .signInDrawer, .signInDrawer").count() == 0: ok = True; break
-        if _is_logged_in(page): ok = True; break
-        time.sleep(0.2 if FAST else 0.25)
-
-    if ok:
-        try: ctx.storage_state(path="storage_state.json")
-        except Exception: pass
-    return ok
-
-def _wait_pricing_loaded(page: Page, timeout_ms: int = PRICE_WAIT_MS):
-    """
-    Wait for either: (a) a pricing-like XHR=200, OR (b) an MSRP/List label shows up.
-    Uses context-level event to support older Playwright.
-    """
-    ctx = page.context
-    patterns = ("/pricing", "/price", "/getpricing")
-    labels = ["MSRP", "List Price", "List"]
-
-    # (b) label watcher as quick path
-    label_locator = page.locator(
-        "div[data-test-selector='productDetails_rightColumn'] >> " +
-        ",".join([f":text('{lbl}')" for lbl in labels])
-    )
-
-    # Arm response waiter
-    def _matcher(resp):
+def _pdp_title(page: Page) -> str:
+    """Main product title from the left product column only."""
+    for sel in [
+        "div[data-test-selector='productDetails_leftColumn'] h1",
+        "main div[data-test-selector='productDetails_leftColumn'] h1",
+        "main h1",
+    ]:
         try:
-            url = resp.url.lower()
-            rtype = getattr(getattr(resp, "request", None), "resource_type", None)
-            is_xhr = (rtype == "xhr") if rtype is not None else True
-            return is_xhr and any(p in url for p in patterns) and resp.status == 200
+            loc = page.locator(sel).first
+            if loc.count():
+                txt = loc.inner_text().strip()
+                if txt:
+                    return txt
         except Exception:
-            return False
+            pass
+    return ""
 
-    start = time.time()
-    got = False
-    try:
-        # race-ish loop: poll label quickly, otherwise wait for one pricing XHR
-        while (time.time() - start) * 1000 < timeout_ms:
-            if label_locator.count() and label_locator.first.is_visible():
-                got = True; break
+def _key_features(page: Page) -> List[str]:
+    """Key Features bullets from the left column area."""
+    roots = [
+        "div[data-test-selector='productDetails_leftColumn']",
+        "main",
+    ]
+    for root in roots:
+        loc = page.locator(f"{root} ul.mainfeatureslist li")
+        if loc.count():
             try:
-                ctx.wait_for_event("response", predicate=_matcher, timeout=500)  # short slice
-                got = True; break
-            except TimeoutError:
+                items = [t.strip() for t in loc.all_inner_texts() if t and t.strip()]
+                if items:
+                    return items
+            except Exception:
                 pass
+    # Fallback near a "Key Features" heading
+    try:
+        hf = page.locator("div[data-test-selector='productDetails_leftColumn'] :text('Key Features')").first
+        if hf.count():
+            parent = hf.locator("xpath=ancestor::*[1]")
+            lis = parent.locator("li")
+            return [t.strip() for t in lis.all_inner_texts() if t.strip()]
     except Exception:
         pass
+    return []
 
-    page.wait_for_timeout(POST_RENDER_MS)
-    return got
+def _pdp_codes(page: Page) -> Tuple[str, str]:
+    """
+    Read model + ADI SKU from the header area under the H1.
+    Example: 'ANV-L7082R | SQ-ANVL7082R'
+    """
+    containers = [
+        "div[data-test-selector='productDetails_leftColumn']",
+        "main div[data-test-selector='productDetails_leftColumn']",
+    ]
+    for root in containers:
+        c = page.locator(root).first
+        if not c.count():
+            continue
+        try:
+            txt = c.inner_text()
+        except Exception:
+            continue
+        m = MODEL_RE.search(txt)
+        s = ADISKU_RE.search(txt)
+        model   = m.group(1) if m else ""
+        alt_mod = s.group(0) if s else ""
+        if model or alt_mod:
+            return model, alt_mod
+    return "", ""
 
-def _extract_labeled_price(text: str, labels: List[str]) -> Optional[Tuple[str, str]]:
-    for label in labels:
-        m = re.search(rf"{re.escape(label)}\s*[:\-]?\s*\$?\s*([0-9][0-9,]*(?:\.\d{{2}})?)", text, re.I)
-        if m: return m.group(1), label
-    return None
+def _derive_from_title_and_model(title: str, model: str) -> Dict[str, Optional[str]]:
+    """Series from model, MP + form_factor best-effort from title."""
+    series = None
+    if model and re.match(r"^[A-Z]", model):
+        series = f"{model[0]}-Series"
 
-def _msrp_text_from_page(page: Page, brand: str = "Hanwha") -> Optional[Tuple[str, str]]:
-    labels = BRANDS.get(brand, {}).get("msrp_labels", ["MSRP", "List Price", "List"])
+    mp = None
+    m_mp = MP_RE.search(title or "")
+    if m_mp:
+        mp = m_mp.group(1)
+
+    lo = (title or "").lower()
+    form = None
+    if "bullet" in lo: form = "Bullet"
+    elif "dome" in lo: form = "Dome"
+    elif "turret" in lo: form = "Turret"
+    elif "ptz" in lo: form = "PTZ"
+    elif "box camera" in lo or "box-style" in lo: form = "Box"
+
+    return {"series": series, "megapixels": mp, "form_factor": form}
+
+def _parse_features(features: List[str]) -> Dict[str, Optional[str]]:
+    """IK rating, IR, lens type/info from Key Features."""
+    text = " | ".join(features)
+
+    ik = None
+    m_ik = IK_RE.search(text)
+    if m_ik:
+        ik = f"IK{m_ik.group(1).zfill(2)}"
+
+    ir = bool(re.search(r"\bIR\b|infrared", text, re.I))
+
+    lens_type = None
+    if re.search(r"\bmotorized\b", text, re.I): lens_type = "Motorized"
+    if re.search(r"\bvarifocal\b", text, re.I):
+        lens_type = (lens_type + " Varifocal") if lens_type else "Varifocal"
+    if re.search(r"\bMFZ\b", text, re.I): lens_type = "MFZ"
+    if re.search(r"\bmanual\b", text, re.I) and not lens_type: lens_type = "Manual"
+    if re.search(r"\bfixed\b", text, re.I) and not lens_type: lens_type = "Fixed"
+
+    lens_info = None
+    mrange = MM_RANGE_RE.search(text)
+    if mrange:
+        lens_info = f"{mrange.group(1)}-{mrange.group(2)}mm"
+    else:
+        msingle = MM_SINGLE_RE.search(text)
+        if msingle:
+            lens_info = f"{msingle.group(1)}mm"
+
+    return {
+        "ik_rating": ik,
+        "ir": ir,
+        "lens_type": lens_type,
+        "lens_info": lens_info,
+    }
+
+def _msrp_text_from_page(page: Page, brand: str = "Hanwha") -> Optional[str]:
+    """Find MSRP value in the right column or whole page."""
+    labels = BRANDS.get(brand, {}).get("msrp_labels", ["MSRP"])
     scopes = [
-        page.locator("div[data-test-selector='productDetails_rightColumn']").first,
-        None,
+        "div[data-test-selector='productDetails_rightColumn']",
+        "body",
     ]
     for scope in scopes:
         try:
-            txt = scope.inner_text() if scope and scope.count() else page.inner_text()
+            txt = page.locator(scope).first.inner_text()
         except Exception:
-            txt = page.inner_text()
-        hit = _extract_labeled_price(txt, labels)
-        if hit: return hit
+            continue
+        for label in labels:
+            # Use compiled regex to avoid f-string brace issues
+            pat = re.compile(re.escape(label) + r"\s*\$?\s*([0-9][0-9,]*(?:\.\d{2})?)", re.I)
+            m = pat.search(txt)
+            if m:
+                return m.group(1)
     return None
 
 def fetch_mspp_for_products(ctx: BrowserContext, products: List[Dict], only_missing: bool = False) -> List[Dict]:
-    _install_fast_routes(ctx)
-
+    """
+    Visit each PDP and extract MSRP + structured attributes directly
+    from the HTML (title + Key Features + header codes).
+    """
     out: List[Dict] = []
     page = ctx.new_page()
-    page.set_default_timeout(12000 if FAST else 20000)
+    page.set_default_timeout(60000)
 
     for i, prod in enumerate(products, 1):
-        url = prod["url"]
+        url = prod.get("url") or ""
         brand = prod.get("brand", "Hanwha")
         print(f"[PDP] {i}/{len(products)} → {url}")
         try:
             if only_missing and str(prod.get("msrp") or "").strip():
-                out.append(prod); continue
+                out.append(prod)
+                continue
 
             page.goto(url, wait_until="domcontentloaded")
             _dismiss_banners(page)
+            # Light settle; DOM is server-rendered for these bits
+            try:
+                page.wait_for_load_state("networkidle", timeout=4000)
+            except TimeoutError:
+                pass
 
-            # Make pricing area visible to trigger lazy logic
-            right_col = page.locator("div[data-test-selector='productDetails_rightColumn']").first
-            if right_col.count(): right_col.scroll_into_view_if_needed()
-            else: page.evaluate("window.scrollBy(0, 600)")
+            title = _pdp_title(page)
+            features = _key_features(page)
+            model, alt_model = _pdp_codes(page)
+            basics = _derive_from_title_and_model(title, model)
+            more = _parse_features(features)
+            msrp_val = _msrp_text_from_page(page, brand=brand)
 
-            _wait_pricing_loaded(page)
+            rec = {**prod}
+            rec.update({
+                "title": title or prod.get("title"),
+                "model": model or prod.get("model"),
+                "alt_model": alt_model or prod.get("alt_model"),
+                "series": basics["series"] or prod.get("series"),
+                "megapixels": basics["megapixels"] or prod.get("megapixels"),
+                "form_factor": basics["form_factor"] or prod.get("form_factor"),
+                "ik_rating": more["ik_rating"] or prod.get("ik_rating"),
+                "ir": True if more["ir"] else (prod.get("ir") or False),
+                "lens_type": more["lens_type"] or prod.get("lens_type"),
+                "lens_info": more["lens_info"] or prod.get("lens_info"),
+                "msrp_raw": None,
+                "msrp": None,
+            })
 
-            # First parse attempt
-            hit = _msrp_text_from_page(page, brand=brand)
+            if msrp_val:
+                rec["msrp_raw"] = f"MSRP ${msrp_val}"
+                rec["msrp"] = msrp_val.replace(",", "")
 
-            # If missing, force one drawer-login and retry without reload (faster)
-            if not hit:
-                user = os.getenv("ADI_USER", "")
-                pwd  = os.getenv("ADI_PASS", "")
-                if not user or not pwd:
-                    raise RuntimeError("Missing ADI_USER / ADI_PASS in environment/.env")
-
-                need_login = _pdp_shows_signin(page) or not _is_logged_in(page)
-                if need_login:
-                    if not page.locator("[role='alertdialog'] .signInDrawer, .signInDrawer").first.count():
-                        _open_signin_drawer(page)
-                    if _login_via_drawer(page, ctx, user, pwd):
-                        # try again without reload (DOM usually updates)
-                        _wait_pricing_loaded(page, timeout_ms=PRICE_WAIT_MS+4000)
-                        hit = _msrp_text_from_page(page, brand=brand)
-                        # last resort: single reload
-                        if not hit:
-                            page.reload(wait_until="domcontentloaded")
-                            _dismiss_banners(page)
-                            if right_col.count(): right_col.scroll_into_view_if_needed()
-                            _wait_pricing_loaded(page, timeout_ms=PRICE_WAIT_MS+6000)
-                            hit = _msrp_text_from_page(page, brand=brand)
-
-            # Backup: raw $ node scan
-            if not hit:
-                val_text = None
-                candidates = [
-                    "div[data-test-selector='productDetails_rightColumn'] :text('MSRP') >> xpath=following::*[contains(normalize-space(),'$')][1]",
-                    "div[data-test-selector='productDetails_rightColumn'] .price",
-                    "div[data-test-selector='productDetails_rightColumn'] [class*='price']",
-                    "div[data-test-selector='productDetails_rightColumn'] :text(/^\\$\\s*\\d[\\d,]*(?:\\.\\d{2})?$/)"
-                ]
-                for sel in candidates:
-                    try:
-                        loc = page.locator(sel).first
-                        if loc.count() and loc.is_visible():
-                            t = loc.inner_text().strip()
-                            m = re.search(r"\$?\s*([0-9][0-9,]*(?:\.\d{2})?)", t)
-                            if m:
-                                val_text = m.group(1); break
-                    except Exception:
-                        pass
-                if val_text:
-                    hit = (val_text, "MSRP")
-
-            rec = {**prod, "msrp_raw": None, "msrp": None}
-            if hit:
-                value, label = hit
-                rec["msrp_raw"] = f"{label} ${value}"
-                rec["msrp"] = value.replace(",", "")
-                print(f"[PDP] {label} ${value}")
-            else:
-                print("[PDP] MSRP not found.")
             out.append(rec)
 
         except TimeoutError:
@@ -265,7 +239,8 @@ def fetch_mspp_for_products(ctx: BrowserContext, products: List[Dict], only_miss
             print(f"[PDP][ERROR] {e}")
             out.append({**prod, "msrp_raw": f"ERROR: {e}", "msrp": None})
 
-        page.wait_for_timeout(120 if FAST else 200)
+        page.wait_for_timeout(120)
 
     page.close()
     return out
+# ---------- EOF ----------
